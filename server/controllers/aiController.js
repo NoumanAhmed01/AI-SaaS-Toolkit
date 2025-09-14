@@ -34,10 +34,12 @@ export const generateArticle = async (req, res) => {
         },
       ],
       temperature: 0.7,
-      max_tokens: length,
     });
 
-    const content = response.choices[0].message.content;
+    const content =
+      response.choices?.[0]?.message?.content ||
+      response.choices?.[0]?.text ||
+      null;
 
     await sql`INSERT INTO creations(user_id, prompt, content, type)
     VALUES(${userId}, ${prompt}, ${content},'article')`;
@@ -80,7 +82,6 @@ export const generateBlogTitle = async (req, res) => {
         },
       ],
       temperature: 0.7,
-      max_tokens: 100,
     });
 
     const content = response.choices[0].message.content;
@@ -151,7 +152,7 @@ export const generateImage = async (req, res) => {
 export const removeImageBackground = async (req, res) => {
   try {
     const { userId } = req.auth();
-    const { image } = req.file;
+    const image = req.file;
     const plan = req.plan;
 
     if (plan !== "premium") {
@@ -185,8 +186,8 @@ export const removeImageBackground = async (req, res) => {
 export const removeImageObject = async (req, res) => {
   try {
     const { userId } = req.auth();
+    const image = req.file;
     const { object } = req.body;
-    const { image } = req.file;
     const plan = req.plan;
 
     if (plan !== "premium") {
@@ -206,7 +207,7 @@ export const removeImageObject = async (req, res) => {
     await sql`INSERT INTO creations(user_id, prompt, content, type)
     VALUES(${userId}, ${`Removed ${object} from image`} , ${imageUrl},'image')`;
 
-    res.json({ success: true, content: secure_url });
+    res.json({ success: true, content: imageUrl });
   } catch (error) {
     console.log(error.message);
     res.json({ success: false, message: error.message });
@@ -216,10 +217,13 @@ export const removeImageObject = async (req, res) => {
 //Review Resume Function
 export const resumeReview = async (req, res) => {
   try {
+    console.log("Hit resumeReview API"); // 👈 check if API is reached
     const { userId } = req.auth();
+    console.log("User ID:", userId);
     const resume = req.file;
+    console.log("Resume:", resume);
     const plan = req.plan;
-
+    console.log("Plan:", plan);
     if (plan !== "premium") {
       return res.json({
         success: false,
@@ -236,7 +240,10 @@ export const resumeReview = async (req, res) => {
     }
 
     const dataBuffer = fs.readFileSync(resume.path);
+    console.log("PDF buffer loaded");
     const pdfData = await pdf(dataBuffer);
+    console.log("PDF parsed successfully");
+    console.log("Resume text length:", pdfData.text.length);
 
     const prompt = `Review the following resume and provide constructive feedback on its strengths, weaknesses, and area of improvement. Resume Content:\n\n${pdfData.text}`;
 
@@ -249,8 +256,9 @@ export const resumeReview = async (req, res) => {
         },
       ],
       temperature: 0.7,
-      max_tokens: length,
     });
+    console.log("AI response received");
+    console.log(JSON.stringify(response, null, 2));
 
     const content = response.choices[0].message.content;
 

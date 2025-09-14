@@ -2,13 +2,57 @@ import React, { useEffect, useState } from "react";
 import { useUser } from "@clerk/clerk-react";
 import { dummyPublishedCreationData } from "../assets/assets";
 import { Heart } from "lucide-react";
+import toast from "react-hot-toast";
+import axios from "axios";
+import { useAuth } from "@clerk/clerk-react";
+
+axios.defaults.baseURL = import.meta.env.VITE_BASE_URL;
 
 const Community = () => {
   const [creation, setCreation] = useState([]);
   const { user } = useUser();
+  const [loading, setLoading] = useState(true);
+  const { getToken } = useAuth();
 
   const fetchCreations = async () => {
-    setCreation(dummyPublishedCreationData);
+    try {
+      const { data } = await axios.get("/api/user/get-published-creations", {
+        headers: { Authorization: `Bearer ${await getToken()}` },
+      });
+      console.log("API Response:", data); // Debug: check the actual response structure
+
+      if (data.success) {
+        setCreation(data.creation || data.creations || data.data || []); // Handle different response structures
+      } else {
+        toast.error(data.message);
+        setCreation([]);
+      }
+    } catch (error) {
+      console.error("Fetch error:", error);
+      toast.error(error.response?.data?.message || error.message);
+      setCreation([]);
+    }
+    setLoading(false);
+  };
+
+  const imageLikeToggle = async (id) => {
+    try {
+      const { data } = await axios.post(
+        "/api/user/toggle-like-creation",
+        { id },
+        {
+          headers: { Authorization: `Bearer ${await getToken()}` },
+        }
+      );
+      if (data.success) {
+        toast.success(data.message);
+        await fetchCreations();
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message);
+    }
   };
 
   useEffect(() => {
@@ -17,7 +61,7 @@ const Community = () => {
     }
   }, [user]);
 
-  return (
+  return !loading ? (
     <div className="flex flex-1 flex-col gap-4 p-6">
       Creation
       <div className="bg-white h-full w-full rounded-xl overflow-y-scroll">
@@ -39,6 +83,7 @@ const Community = () => {
               <div>
                 <p>{creation.likes.length}</p>
                 <Heart
+                  onClick={() => imageLikeToggle(creation.id)}
                   className={`min-w-5 h-5 hover:scale-110 cursor-pointer ${
                     creation.likes.includes(user.id)
                       ? `fill-red-500 text-red-600`
@@ -50,6 +95,10 @@ const Community = () => {
           </div>
         ))}
       </div>
+    </div>
+  ) : (
+    <div className="flex justify-center items-center h-full">
+      <span className=" w-10 h-10 my-1 rounded-full border-2 border-t-transparent animate-spin"></span>
     </div>
   );
 };
